@@ -116,9 +116,7 @@ pipeline {
 
   post {
     success {
-      // Print frontend LB hostname if present
-      sh 'kubectl -n "$K8S_NAMESPACE" get svc frontend -o jsonpath="{.status.loadBalancer.ingress[0].hostname}" || true'
-      sh 'kubectl -n "$K8S_NAMESPACE" get svc && kubectl -n "$K8S_NAMESPACE" get pods -o wide'
+      sh 'kubectl -n "$K8S_NAMESPACE" get svc frontend -o jsonpath="{.status.loadBalancer.ingress[0].hostname}"'
     }
     failure {
       echo 'Pipeline failed.'
