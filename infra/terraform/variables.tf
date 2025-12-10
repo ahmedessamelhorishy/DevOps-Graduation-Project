@@ -25,7 +25,7 @@ variable "public_key_path" {
 variable "ec2_instance_type" {
   description = "Instance type for EC2 tools server"
   type        = string
-  default     = "t3.micro"
+  default     = "m7i-flex.large"
 }
 
 variable "node_instance_type" {

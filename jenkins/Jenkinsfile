@@ -100,17 +100,15 @@ pipeline {
           kubectl -n "$K8S_NAMESPACE" apply -f k8s/backend-service.yaml
           kubectl -n "$K8S_NAMESPACE" apply -f k8s/frontend-service.yaml
 
-          # Render deployments with current tags (envsubst)
           export FRONTEND_TAG BACKEND_TAG DB_TAG
 
           envsubst < k8s/db-deployment.yaml       | kubectl -n "$K8S_NAMESPACE" apply -f -
           envsubst < k8s/backend-deployment.yaml  | kubectl -n "$K8S_NAMESPACE" apply -f -
           envsubst < k8s/frontend-deployment.yaml | kubectl -n "$K8S_NAMESPACE" apply -f -
 
-          # Rollout status (fail if rollout fails)
-          kubectl -n "$K8S_NAMESPACE" rollout status deployment/db --timeout=180s
-          kubectl -n "$K8S_NAMESPACE" rollout status deployment/backend --timeout=180s
-          kubectl -n "$K8S_NAMESPACE" rollout status deployment/frontend --timeout=180s
+          kubectl -n "$K8S_NAMESPACE" rollout status deployment/db
+          kubectl -n "$K8S_NAMESPACE" rollout status deployment/backend
+          kubectl -n "$K8S_NAMESPACE" rollout status deployment/frontend
         '''
       }
     }
