@@ -1,0 +1,127 @@
+pipeline {
+  agent any
+
+  environment {
+    GITHUB_USERNAME   = "${env.GITHUB_USERNAME}"
+    GITHUB_REPO       = "${env.GITHUB_REPO}"
+    AWS_REGION        = "${env.AWS_REGION}"
+    EKS_CLUSTER_NAME  = "${env.EKS_CLUSTER_NAME}"
+    K8S_NAMESPACE     = "${env.K8S_NAMESPACE}"
+    ECR_PUBLIC_URI    = "${env.ECR_PUBLIC_URI}"
+
+    FRONTEND_TAG      = "${env.ECR_PUBLIC_URI}:frontend-${env.BUILD_NUMBER}"
+    BACKEND_TAG       = "${env.ECR_PUBLIC_URI}:backend-${env.BUILD_NUMBER}"
+    DB_TAG            = "${env.ECR_PUBLIC_URI}:postgres-15"
+  }
+
+  triggers { githubPush() }
+
+  options {
+    timestamps()
+    ansiColor('xterm')
+    disableConcurrentBuilds()
+  }
+
+  stages {
+    stage('Checkout') {
+      steps {
+        git branch: 'main', url: "https://github.com/${env.GITHUB_USERNAME}/${env.GITHUB_REPO}.git"
+      }
+    }
+
+    stage('AWS/EKS setup') {
+      steps {
+        sh 'set -e; aws eks update-kubeconfig --region "$AWS_REGION" --name "$EKS_CLUSTER_NAME"'
+      }
+    }
+
+    stage('Create namespace') {
+      steps {
+        sh 'set -e; kubectl create ns "$K8S_NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -'
+      }
+    }
+
+    stage('Docker login') {
+      steps {
+        sh 'set -e; aws ecr-public get-login-password --region "$AWS_REGION" | docker login --username AWS --password-stdin public.ecr.aws'
+      }
+    }
+
+    stage('Mirror DB to ECR (one-time)') {
+      steps {
+        sh '''
+          set -e
+          # ECR_PUBLIC_URI format: public.ecr.aws/<alias>/<repo>
+          REPO_NAME=$(echo "$ECR_PUBLIC_URI" | cut -d/ -f3)
+          if aws ecr-public describe-images --repository-name "$REPO_NAME" \
+               --region "$AWS_REGION" \
+               --image-ids imageTag=postgres-15 >/dev/null 2>&1; then
+            echo "DB image already exists in ECR: $DB_TAG"
+          else
+            echo "Pushing DB image to ECR for the first time"
+            docker pull postgres:15
+            docker tag postgres:15 "$DB_TAG"
+            docker push "$DB_TAG"
+          fi
+        '''
+      }
+    }
+
+    stage('Build, tag & push frontend/backend') {
+      steps {
+        sh '''
+          set -e
+          docker build -t frontend:build ./app/frontend
+          docker build -t backend:build ./app/backend
+
+          docker tag frontend:build "$FRONTEND_TAG"
+          docker tag backend:build "$BACKEND_TAG"
+
+          docker tag frontend:build "$ECR_PUBLIC_URI:frontend-latest"
+          docker tag backend:build "$ECR_PUBLIC_URI:backend-latest"
+
+          docker push "$FRONTEND_TAG"
+          docker push "$BACKEND_TAG"
+          docker push "$ECR_PUBLIC_URI:frontend-latest"
+          docker push "$ECR_PUBLIC_URI:backend-latest"
+        '''
+      }
+    }
+
+    stage('Deploy to Kubernetes') {
+      steps {
+        sh '''
+          set -e
+          # Apply non-image resources idempotently
+          kubectl -n "$K8S_NAMESPACE" apply -f k8s/db-configmap.yaml
+          kubectl -n "$K8S_NAMESPACE" apply -f k8s/db-service.yaml
+          kubectl -n "$K8S_NAMESPACE" apply -f k8s/backend-service.yaml
+          kubectl -n "$K8S_NAMESPACE" apply -f k8s/frontend-service.yaml
+
+          # Render deployments with current tags (envsubst)
+          export FRONTEND_TAG BACKEND_TAG DB_TAG
+
+          envsubst < k8s/db-deployment.yaml       | kubectl -n "$K8S_NAMESPACE" apply -f -
+          envsubst < k8s/backend-deployment.yaml  | kubectl -n "$K8S_NAMESPACE" apply -f -
+          envsubst < k8s/frontend-deployment.yaml | kubectl -n "$K8S_NAMESPACE" apply -f -
+
+          # Rollout status (fail if rollout fails)
+          kubectl -n "$K8S_NAMESPACE" rollout status deployment/db --timeout=180s
+          kubectl -n "$K8S_NAMESPACE" rollout status deployment/backend --timeout=180s
+          kubectl -n "$K8S_NAMESPACE" rollout status deployment/frontend --timeout=180s
+        '''
+      }
+    }
+  }
+
+  post {
+    success {
+      // Print frontend LB hostname if present
+      sh 'kubectl -n "$K8S_NAMESPACE" get svc frontend -o jsonpath="{.status.loadBalancer.ingress[0].hostname}" || true'
+      sh 'kubectl -n "$K8S_NAMESPACE" get svc && kubectl -n "$K8S_NAMESPACE" get pods -o wide'
+    }
+    failure {
+      echo 'Pipeline failed.'
+    }
+  }
+}

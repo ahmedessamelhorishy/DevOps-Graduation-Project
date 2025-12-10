@@ -1,1 +1,1 @@
-# DevOps Graduation Poject
+# DevOps Graduation Project

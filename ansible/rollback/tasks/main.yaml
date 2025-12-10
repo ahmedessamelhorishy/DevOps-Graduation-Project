@@ -1,0 +1,82 @@
+---
+- name: Stop and disable Jenkins service
+  service:
+    name: jenkins
+    state: stopped
+    enabled: false
+
+- name: Remove Jenkins package
+  apt:
+    name: jenkins
+    state: absent
+
+- name: Remove Jenkins repository
+  apt_repository:
+    repo: "deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] https://pkg.jenkins.io/debian-stable binary/"
+    state: absent
+    filename: jenkins
+
+- name: Remove Jenkins GPG key file
+  file:
+    path: /usr/share/keyrings/jenkins-keyring.asc
+    state: absent
+
+- name: Remove Jenkins user from Docker group
+  user:
+    name: jenkins
+    groups: docker
+    append: no
+    state: present
+
+- name: Remove OpenJDK 17
+  apt:
+    name: openjdk-17-jdk
+    state: absent
+
+
+- name: Remove kubectl binary
+  file:
+    path: /usr/local/bin/kubectl
+    state: absent
+
+
+- name: Remove AWS CLI binary
+  file:
+    path: /usr/local/bin/aws
+    state: absent
+
+- name: Remove AWS CLI installer directory
+  file:
+    path: /tmp/aws
+    state: absent
+
+- name: Remove AWS CLI zip
+  file:
+    path: /tmp/awscliv2.zip
+    state: absent
+
+
+- name: Remove Docker packages
+  apt:
+    name:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+    state: absent
+
+- name: Remove Docker repository
+  apt_repository:
+    repo: deb [arch=amd64] https://download.docker.com/linux/ubuntu jammy stable
+    state: absent
+
+- name: Remove Docker GPG key
+  apt_key:
+    url: https://download.docker.com/linux/ubuntu/gpg
+    state: absent
+
+- name: Remove Ubuntu user from Docker group
+  user:
+    name: ubuntu
+    groups: docker
+    append: no
+    state: present

@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Frontend</title>
+</head>
+<body>
+  <h1>Hello from Frontend!</h1>
+  <p>Backend API response will appear below:</p>
+  <div id="api"></div>
+  <script>
+    fetch('/api')
+      .then(res => res.text())
+      .then(data => document.getElementById('api').innerText = data);
+  </script>
+</body>
+</html>

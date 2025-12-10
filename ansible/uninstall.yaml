@@ -1,0 +1,6 @@
+---
+- name: Uninstall Tools on EC2 instance
+  hosts: host
+  become: true
+  roles:
+    - rollback

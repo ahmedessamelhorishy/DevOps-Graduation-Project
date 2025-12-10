@@ -1,0 +1,118 @@
+---
+- name: Update apt cache
+  apt:
+    update_cache: yes
+
+- name: Install required packages
+  apt:
+    name:
+      - git
+      - curl
+      - unzip
+      - apt-transport-https
+      - ca-certificates
+      - gnupg
+      - software-properties-common
+    state: present
+
+
+- name: Add Docker GPG key
+  apt_key:
+    url: https://download.docker.com/linux/ubuntu/gpg
+    state: present
+
+- name: Add Docker repository
+  apt_repository:
+    repo: deb [arch=amd64] https://download.docker.com/linux/ubuntu jammy stable
+    state: present
+
+- name: Install Docker engine
+  apt:
+    name:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+    state: present
+    update_cache: yes
+
+- name: Ensure Docker is started
+  service:
+    name: docker
+    state: started
+    enabled: yes
+
+- name: Add Ubuntu user to Docker group
+  user:
+    name: ubuntu
+    groups: docker
+    append: yes
+
+
+- name: Download AWS CLI v2
+  get_url:
+    url: https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip
+    dest: /tmp/awscliv2.zip
+
+- name: Unzip AWS CLI
+  unarchive:
+    src: /tmp/awscliv2.zip
+    dest: /tmp
+    remote_src: yes
+    creates: /usr/local/bin/aws
+
+- name: Install AWS CLI
+  command: /tmp/aws/install
+  args:
+    creates: /usr/local/bin/aws
+
+
+- name: Get latest kubectl version
+  shell: "curl -Ls https://dl.k8s.io/release/stable.txt"
+  register: kubectl_version
+
+- name: Download kubectl
+  get_url:
+    url: "https://dl.k8s.io/release/{{ kubectl_version.stdout }}/bin/linux/amd64/kubectl"
+    dest: /usr/local/bin/kubectl
+    mode: '0755'
+
+
+- name: Install Java (OpenJDK 17)
+  apt:
+    name: openjdk-17-jdk
+    state: present
+    update_cache: yes
+
+- name: Download Jenkins GPG key
+  get_url:
+    url: https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key
+    dest: /usr/share/keyrings/jenkins-keyring.asc
+    mode: '0644'
+
+- name: Add Jenkins repository
+  apt_repository:
+    repo: "deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] https://pkg.jenkins.io/debian-stable binary/"
+    state: present
+    filename: jenkins
+
+- name: Update apt cache 
+  apt:
+    update_cache: yes
+
+- name: Install Jenkins
+  apt:
+    name: jenkins
+    state: present
+    update_cache: yes
+
+- name: Ensure Jenkins is started
+  service:
+    name: jenkins
+    state: started
+    enabled: true
+
+- name: Add Jenkins user to Docker group
+  user:
+    name: jenkins
+    groups: docker
+    append: yes

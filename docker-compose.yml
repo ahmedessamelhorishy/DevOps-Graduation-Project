@@ -1,0 +1,30 @@
+services:
+  frontend:
+    build: ./app/frontend
+    image: frontend:latest
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    container_name: frontend
+
+  backend:
+    build: ./app/backend
+    image: backend:latest
+    ports:
+      - "4000:4000"
+    depends_on:
+      - db
+    container_name: backend
+
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: mydb
+    volumes:
+      - ./app/database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    container_name: db
