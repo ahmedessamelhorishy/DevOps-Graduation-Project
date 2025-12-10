@@ -8,8 +8,8 @@ pipeline {
   }
 
   environment {
-    AWS_ACCESS_KEY_ID     = credentials('aws-creds-id')
-    AWS_SECRET_ACCESS_KEY = credentials('aws-creds-id')
+    AWS_ACCESS_KEY_ID     = credentials('aws-creds')
+    AWS_SECRET_ACCESS_KEY = credentials('aws-creds')
 
     GITHUB_USERNAME   = "${env.GITHUB_USERNAME}"
     GITHUB_REPO       = "${env.GITHUB_REPO}"
