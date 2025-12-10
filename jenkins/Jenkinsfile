@@ -1,6 +1,12 @@
 pipeline {
   agent any
 
+  options {
+    timestamps()
+    disableConcurrentBuilds()
+    wrap([$class: 'AnsiColorBuildWrapper', 'colorMapName': 'xterm'])
+  }
+
   environment {
     GITHUB_USERNAME   = "${env.GITHUB_USERNAME}"
     GITHUB_REPO       = "${env.GITHUB_REPO}"
@@ -16,12 +22,6 @@ pipeline {
 
   triggers { githubPush() }
 
-  options {
-    timestamps()
-    ansiColor('xterm')
-    disableConcurrentBuilds()
-  }
-
   stages {
     stage('Checkout') {
       steps {
@@ -30,9 +30,11 @@ pipeline {
     }
 
     stage('AWS EKS connect') {
-      withCredentials([aws(credentialsId: 'aws-creds', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')])
       steps {
+        withCredentials([aws(credentialsId: 'aws-creds', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')])
+        {
         sh 'set -e; aws eks update-kubeconfig --region "$AWS_REGION" --name "$EKS_CLUSTER_NAME"'
+        }
       }
     }
 
