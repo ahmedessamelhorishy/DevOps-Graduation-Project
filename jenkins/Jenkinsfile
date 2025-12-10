@@ -29,29 +29,29 @@ pipeline {
       }
     }
 
-    stage('AWS/EKS setup') {
+    stage('AWS EKS connect') {
+      withCredentials([aws(credentialsId: 'aws-creds', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')])
       steps {
         sh 'set -e; aws eks update-kubeconfig --region "$AWS_REGION" --name "$EKS_CLUSTER_NAME"'
       }
     }
 
-    stage('Create namespace') {
+    stage('Create k8 namespace') {
       steps {
         sh 'set -e; kubectl create ns "$K8S_NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -'
       }
     }
 
-    stage('Docker login') {
+    stage('Docker login to ECR') {
       steps {
         sh 'set -e; aws ecr-public get-login-password --region "$AWS_REGION" | docker login --username AWS --password-stdin public.ecr.aws'
       }
     }
 
-    stage('Mirror DB to ECR (one-time)') {
+    stage('Push DB image to ECR (one-time)') {
       steps {
         sh '''
           set -e
-          # ECR_PUBLIC_URI format: public.ecr.aws/<alias>/<repo>
           REPO_NAME=$(echo "$ECR_PUBLIC_URI" | cut -d/ -f3)
           if aws ecr-public describe-images --repository-name "$REPO_NAME" \
                --region "$AWS_REGION" \
