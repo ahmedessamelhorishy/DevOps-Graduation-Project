@@ -22,12 +22,6 @@ pipeline {
 
   triggers { githubPush() }
 
-  options {
-    timestamps()
-    ansiColor('xterm')
-    disableConcurrentBuilds()
-  }
-
   stages {
     stage('Checkout') {
       steps {
