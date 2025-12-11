@@ -105,14 +105,14 @@
     state: present
     update_cache: yes
 
-- name: Ensure Jenkins is started
-  service:
-    name: jenkins
-    state: started
-    enabled: true
-
 - name: Add Jenkins user to Docker group
   user:
     name: jenkins
     groups: docker
     append: yes
+
+- name: Ensure Jenkins is started
+  service:
+    name: jenkins
+    state: started
+    enabled: true

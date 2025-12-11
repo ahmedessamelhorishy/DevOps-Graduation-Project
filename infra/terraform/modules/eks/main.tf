@@ -1,4 +1,3 @@
-# SG
 resource "aws_security_group" "node_sg" {
   name        = "${var.project_name}-node-sg"
   description = "Worker node security group"
@@ -30,7 +29,7 @@ resource "aws_security_group" "node_sg" {
   tags = { Name = "${var.project_name}-node-sg" }
 }
 
-# IAM
+
 resource "aws_iam_role" "eks_cluster_role" {
   name = "${var.project_name}-eks-cluster-role"
   assume_role_policy = jsonencode({
@@ -70,7 +69,7 @@ resource "aws_iam_role_policy_attachment" "node_policies" {
   policy_arn = each.value
 }
 
-# EKS
+
 resource "aws_eks_cluster" "cluster" {
   name     = "${var.project_name}-eks"
   role_arn = aws_iam_role.eks_cluster_role.arn
@@ -99,6 +98,11 @@ resource "aws_eks_node_group" "nodes" {
   }
 
   instance_types = [var.node_instance_type]
+
+  remote_access {
+    ec2_ssh_key               = var.ec2_key_name
+    source_security_group_ids = [var.ec2_sg_id]
+  }
 
   depends_on = [aws_iam_role_policy_attachment.node_policies]
 }

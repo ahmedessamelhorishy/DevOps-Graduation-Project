@@ -12,6 +12,8 @@ module "eks" {
   public_subnet_ids  = module.vpc.public_subnet_ids
   eks_version        = var.eks_version
   node_instance_type = var.node_instance_type
+  ec2_key_name       = module.ec2.key_name
+  ec2_sg_id          = module.ec2.ec2_sg_id
 }
 
 module "ec2" {

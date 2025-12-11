@@ -12,6 +12,8 @@ spec:
       labels:
         app: db
     spec:
+      imagePullSecrets: 
+        - name: nexus-secret
       containers:
       - name: db
         image: ${DB_TAG} # postgres:15

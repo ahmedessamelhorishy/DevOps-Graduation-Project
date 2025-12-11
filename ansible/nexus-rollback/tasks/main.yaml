@@ -1,0 +1,52 @@
+---
+- name: Stop and disable Nexus service
+  systemd:
+    name: nexus
+    state: stopped
+    enabled: no
+
+- name: Remove Nexus systemd service file
+  file:
+    path: "/etc/systemd/system/nexus.service"
+    state: absent
+
+- name: Reload systemd after service removal
+  systemd:
+    daemon_reload: yes
+
+- name: Remove Nexus symlink
+  file:
+    path: "/opt/nexus"
+    state: absent
+
+- name: Remove Nexus installation directory
+  file:
+    path: "/opt/nexus-3.83.1-03"
+    state: absent
+
+- name: Remove Nexus data directory
+  file:
+    path: "/opt/sonatype-work"
+    state: absent
+
+- name: Remove downloaded Nexus tarball
+  file:
+    path: "/tmp/nexus-3.83.1-03.tar.gz"
+    state: absent
+
+- name: Remove Nexus user
+  user:
+    name: nexus
+    state: absent
+    remove: yes
+
+- name: Remove Nexus group
+  group:
+    name: nexus
+    state: absent
+
+- name: Uninstall OpenJDK JRE
+  apt:
+    name: openjdk-11-jre-headless
+    state: absent
+    purge: yes

@@ -11,21 +11,25 @@ pipeline {
     AWS_ACCESS_KEY_ID     = credentials('aws-creds')
     AWS_SECRET_ACCESS_KEY = credentials('aws-creds')
 
+    NEXUS_USER = credentials('nexus-creds', variable: 'username')
+    NEXUS_PASS = credentials('nexus-creds', variable: 'password')
+
     GITHUB_USERNAME   = "${env.GITHUB_USERNAME}"
     GITHUB_REPO       = "${env.GITHUB_REPO}"
     AWS_REGION        = "${env.AWS_REGION}"
     EKS_CLUSTER_NAME  = "${env.EKS_CLUSTER_NAME}"
     K8S_NAMESPACE     = "${env.K8S_NAMESPACE}"
-    ECR_PUBLIC_URI    = "${env.ECR_PUBLIC_URI}"
+    NEXUS_REGISTRY     = "${env.NEXUS_REGISTRY}"
 
-    FRONTEND_TAG      = "${env.ECR_PUBLIC_URI}:frontend-${env.BUILD_NUMBER}"
-    BACKEND_TAG       = "${env.ECR_PUBLIC_URI}:backend-${env.BUILD_NUMBER}"
-    DB_TAG            = "${env.ECR_PUBLIC_URI}:postgres-15"
+    FRONTEND_TAG      = "${env.NEXUS_REGISTRY}:frontend-${env.BUILD_NUMBER}"
+    BACKEND_TAG       = "${env.NEXUS_REGISTRY}:backend-${env.BUILD_NUMBER}"
+    DB_TAG            = "${env.NEXUS_REGISTRY}:postgres-15"
   }
 
   triggers { githubPush() }
 
   stages {
+
     stage('Checkout') {
       steps {
         git branch: 'main', url: "https://github.com/${env.GITHUB_USERNAME}/${env.GITHUB_REPO}.git"
@@ -44,26 +48,26 @@ pipeline {
       }
     }
 
-    stage('Docker login to ECR') {
-      steps {
-        sh 'set -e; aws ecr-public get-login-password --region "$AWS_REGION" | docker login --username AWS --password-stdin public.ecr.aws'
-      }
-    }
-
-    stage('Push DB image to ECR (one-time)') {
+    stage('Docker login to Nexus') {
       steps {
         sh '''
           set -e
-          REPO_NAME=$(echo "$ECR_PUBLIC_URI" | cut -d/ -f3)
-          if aws ecr-public describe-images --repository-name "$REPO_NAME" \
-               --region "$AWS_REGION" \
-               --image-ids imageTag=postgres-15 >/dev/null 2>&1; then
-            echo "DB image already exists in ECR: $DB_TAG"
+          docker login ${NEXUS_REGISTRY} -u "$NEXUS_USER" -p "$NEXUS_PASS"
+        '''
+      }
+    }
+
+    stage('Push DB image to Nexus (one-time)') {
+      steps {
+        sh '''
+          set -e
+          if docker pull "${DB_TAG}" >/dev/null 2>&1; then
+            echo "DB image already exists in Nexus: ${DB_TAG}"
           else
-            echo "Pushing DB image to ECR for the first time"
+            echo "Pushing DB image to Nexus for first time"
             docker pull postgres:15
-            docker tag postgres:15 "$DB_TAG"
-            docker push "$DB_TAG"
+            docker tag postgres:15 "${DB_TAG}"
+            docker push "${DB_TAG}"
           fi
         '''
       }
@@ -76,16 +80,30 @@ pipeline {
           docker build -t frontend:build ./app/frontend
           docker build -t backend:build ./app/backend
 
-          docker tag frontend:build "$FRONTEND_TAG"
-          docker tag backend:build "$BACKEND_TAG"
+          docker tag frontend:build "${FRONTEND_TAG}"
+          docker tag backend:build "${BACKEND_TAG}"
 
-          docker tag frontend:build "$ECR_PUBLIC_URI:frontend-latest"
-          docker tag backend:build "$ECR_PUBLIC_URI:backend-latest"
+          docker tag frontend:build "$NEXUS_REGISTRY:frontend-latest"
+          docker tag backend:build "$NEXUS_REGISTRY:backend-latest"
 
-          docker push "$FRONTEND_TAG"
-          docker push "$BACKEND_TAG"
-          docker push "$ECR_PUBLIC_URI:frontend-latest"
-          docker push "$ECR_PUBLIC_URI:backend-latest"
+          docker push "${FRONTEND_TAG}"
+          docker push "${BACKEND_TAG}"
+          docker push "$NEXUS_REGISTRY:frontend-latest"
+          docker push "$NEXUS_REGISTRY:backend-latest"
+        '''
+      }
+    }
+
+    stage('Create Secret in Kubernetes for Nexus') {
+      steps {
+        sh '''
+          set -e
+          kubectl -n "$K8S_NAMESPACE" create secret docker-registry nexus-secret \
+            --docker-server="${NEXUS_REGISTRY}" \
+            --docker-username="${NEXUS_USER}" \
+            --docker-password="${NEXUS_PASS}" \
+            --docker-email="a.e.n@gmail.com" \
+            --dry-run=client -o yaml | kubectl apply -f -
         '''
       }
     }
@@ -94,7 +112,6 @@ pipeline {
       steps {
         sh '''
           set -e
-          # Apply non-image resources idempotently
           kubectl -n "$K8S_NAMESPACE" apply -f k8s/db-configmap.yaml
           kubectl -n "$K8S_NAMESPACE" apply -f k8s/db-service.yaml
           kubectl -n "$K8S_NAMESPACE" apply -f k8s/backend-service.yaml

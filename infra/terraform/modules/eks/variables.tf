@@ -21,3 +21,11 @@ variable "eks_version" {
 variable "node_instance_type" {
   type = string
 }
+
+variable "ec2_key_name" {
+  type = string
+}
+
+variable "ec2_sg_id" {
+  type = string
+}

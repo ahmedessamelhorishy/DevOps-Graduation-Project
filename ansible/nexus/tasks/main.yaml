@@ -1,0 +1,95 @@
+---
+- name: Install OpenJDK 11 JRE
+  apt:
+    name:
+      - openjdk-11-jre-headless
+    state: present
+    update_cache: yes
+
+- name: Create Nexus group
+  group:
+    name: nexus
+    system: yes
+
+- name: Create Nexus user
+  user:
+    name: nexus
+    group: nexus
+    system: yes
+    shell: /bin/bash
+    create_home: no
+
+- name: Download Nexus OSS
+  get_url:
+    url: "https://download.sonatype.com/nexus/3/nexus-3.83.1-03-linux-x86_64.tar.gz"
+    dest: "/tmp/nexus-3.83.1-03.tar.gz"
+    mode: '0644'
+
+- name: Extract Nexus
+  unarchive:
+    src: "/tmp/nexus-3.83.1-03.tar.gz"
+    dest: "/opt"
+    remote_src: yes
+    creates: "/opt/nexus-3.83.1-03"
+
+- name: Symlink Nexus directory
+  file:
+    src: "/opt/nexus-3.83.1-03"
+    dest: "/opt/nexus"
+    state: link
+    force: yes
+
+- name: Set ownership on Nexus installation
+  file:
+    path: "/opt/nexus-3.83.1-03"
+    owner: nexus
+    group: nexus
+    recurse: yes
+
+- name: Ensure Nexus data directory exists
+  file:
+    path: "/opt/sonatype-work"
+    owner: nexus
+    group: nexus
+    state: directory
+    recurse: yes
+
+- name: Configure Nexus to run as nexus user
+  lineinfile:
+    path: "/opt/nexus/bin/nexus.rc"
+    regexp: '^#?run_as_user='
+    line: "run_as_user=nexus"
+    create: yes
+
+- name: Create systemd service for Nexus
+  copy:
+    dest: "/etc/systemd/system/nexus.service"
+    owner: root
+    group: root
+    mode: '0644'
+    content: |
+      [Unit]
+      Description=Nexus Repository Manager
+      After=network.target
+
+      [Service]
+      Type=forking
+      LimitNOFILE=65536
+      ExecStart=/opt/nexus/bin/nexus start
+      ExecStop=/opt/nexus/bin/nexus stop
+      User=nexus
+      Restart=on-failure
+      Environment=INSTALL4J_JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
+
+      [Install]
+      WantedBy=multi-user.target
+
+- name: Reload systemd
+  systemd:
+    daemon_reload: yes
+
+- name: Enable and start Nexus service
+  systemd:
+    name: nexus
+    enabled: yes
+    state: started

@@ -39,7 +39,11 @@
     path: /usr/local/bin/kubectl
     state: absent
 
-
+- name: Remove AWS CLI installation directory
+  file:
+    path: /usr/local/aws-cli
+    state: absent
+    
 - name: Remove AWS CLI binary
   file:
     path: /usr/local/bin/aws
